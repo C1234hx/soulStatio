@@ -88,7 +88,9 @@ DATABASES = {
 MONGODB_SETTINGS = {
     'db': 'soulstation_db',
     'host': 'localhost',
-    'port': 27017
+    'port': 27017,
+    'username': 'root',
+    'password': 'zxcy3025',
 }
 
 

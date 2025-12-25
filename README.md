@@ -136,8 +136,8 @@ MONGODB_SETTINGS = {
     'host': 'localhost',       # 主机地址
     'port': 27017,             # 端口号
     # 如果启用了 MongoDB 认证，添加以下两行
-    # 'username': 'your_username',
-    # 'password': 'your_password',
+    'username': 'your_username',
+    'password': 'your_password',
 }
 ```
 
@@ -155,8 +155,8 @@ connect(
     host=settings.MONGODB_SETTINGS['host'],
     port=settings.MONGODB_SETTINGS['port'],
     # 如果启用了认证，添加以下参数
-    # username=settings.MONGODB_SETTINGS.get('username'),
-    # password=settings.MONGODB_SETTINGS.get('password'),
+    username=settings.MONGODB_SETTINGS.get('username'),
+    password=settings.MONGODB_SETTINGS.get('password'),
 )
 ```
 
