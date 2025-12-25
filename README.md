@@ -243,15 +243,15 @@ from .serializers import UserSerializer
 class UserList(APIView):
     def get(self, request):
         """获取所有用户"""
-        users = User.objects.all()
-        serializer = UserSerializer(users, many=True)
+        users = User.objects.all()#用户的所有字段
+        serializer = UserSerializer(users, many=True)#获取模型的所有字段
         return Response(serializer.data)
     
     def post(self, request):
         """创建新用户"""
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save() #内置方法应该是，保存这条传入的数据
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

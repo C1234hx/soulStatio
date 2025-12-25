@@ -5,5 +5,7 @@ from django.conf import settings
 connect(
     db=settings.MONGODB_SETTINGS['db'],
     host=settings.MONGODB_SETTINGS['host'],
-    port=settings.MONGODB_SETTINGS['port']
+    port=settings.MONGODB_SETTINGS['port'],
+    username=settings.MONGODB_SETTINGS.get('username'),
+    password=settings.MONGODB_SETTINGS.get('password'),
 )
