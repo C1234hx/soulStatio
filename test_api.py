@@ -20,8 +20,11 @@ print("\n2. 测试创建新用户:")
 try:
     user_data = {
         'username': 'testuser',
-        'email': 'test@example.com',
-        'age': 25
+        'name': '测试用户',
+        'password': 'testpassword123',
+        'age': 25,
+        'is_admin': False,
+        'is_active': True
     }
     response = requests.post(BASE_URL + 'users/', data=json.dumps(user_data), 
                           headers={'Content-Type': 'application/json'})
@@ -52,8 +55,11 @@ if user_id:
     try:
         update_data = {
             'username': 'updateduser',
-            'email': 'updated@example.com',
-            'age': 30
+            'name': '更新后的测试用户',
+            'password': 'newpassword456',
+            'age': 30,
+            'is_admin': True,
+            'is_active': True
         }
         response = requests.put(BASE_URL + f'users/{user_id}/', data=json.dumps(update_data), 
                               headers={'Content-Type': 'application/json'})

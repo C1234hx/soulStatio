@@ -8,4 +8,5 @@ connect(
     port=settings.MONGODB_SETTINGS['port'],
     username=settings.MONGODB_SETTINGS.get('username'),
     password=settings.MONGODB_SETTINGS.get('password'),
+    authentication_source='admin',  # 指定认证数据库
 )
