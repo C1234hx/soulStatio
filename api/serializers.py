@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, ActionAdvice
 
+#用户序列化器
 class UserSerializer(serializers.Serializer):
     id = serializers.CharField(read_only=True)
     username = serializers.CharField(required=True, max_length=50)  # 账号
@@ -22,6 +23,26 @@ class UserSerializer(serializers.Serializer):
             instance.password = validated_data['password']
         instance.age = validated_data.get('age', instance.age)
         instance.is_admin = validated_data.get('is_admin', instance.is_admin)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+        return instance
+
+# 行动建议序列化器
+class ActionAdviceSerializer(serializers.Serializer):
+    id = serializers.CharField(read_only=True)  # ID，只读
+    emotion_direction = serializers.IntegerField(required=True, min_value=0, max_value=2)  # 情绪向：0-正向，1-普通，2-负向
+    content = serializers.CharField(required=True)  # 行动建议内容
+    is_active = serializers.BooleanField(default=True)  # 启用状态
+    created_at = serializers.DateTimeField(read_only=True)  # 创建时间，只读
+    
+    def create(self, validated_data):
+        """创建新的行动建议"""
+        return ActionAdvice.objects.create(**validated_data)
+    
+    def update(self, instance, validated_data):
+        """更新现有行动建议"""
+        instance.emotion_direction = validated_data.get('emotion_direction', instance.emotion_direction)
+        instance.content = validated_data.get('content', instance.content)
         instance.is_active = validated_data.get('is_active', instance.is_active)
         instance.save()
         return instance
