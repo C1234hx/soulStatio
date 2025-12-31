@@ -19,8 +19,8 @@ class User(Document):
 
 # 行动建议模型
 class ActionAdvice(Document):
-    emotion_direction = IntField(required=True, min_value=0, max_value=2)  # 情绪向：0-正向，1-普通，2-负向
-    content = StringField(required=True)  # 行动建议内容
+    emotion_direction = IntField(required=True, min_value=1, max_value=3)  # 情绪向：1-正向，2-普通，3-负向（0用于筛选全部）
+    content = StringField(required=True, max_length=70)  # 行动建议内容，最大长度70个字符
     is_active = BooleanField(default=True)  # 启用状态
     created_at = DateTimeField(default=datetime.now)  # 创建时间
     

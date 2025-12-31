@@ -30,11 +30,17 @@ class UserSerializer(serializers.Serializer):
 # 行动建议序列化器
 class ActionAdviceSerializer(serializers.Serializer):
     id = serializers.CharField(read_only=True)  # ID，只读
-    emotion_direction = serializers.IntegerField(required=True, min_value=0, max_value=2)  # 情绪向：0-正向，1-普通，2-负向
-    content = serializers.CharField(required=True)  # 行动建议内容
+    emotion_direction = serializers.IntegerField(required=True, min_value=1, max_value=3)  # 情绪向：1-正向，2-普通，3-负向
+    content = serializers.CharField(required=True, max_length=70)  # 行动建议内容，最大长度70个字符
     is_active = serializers.BooleanField(default=True)  # 启用状态
     created_at = serializers.DateTimeField(read_only=True)  # 创建时间，只读
     
+    def validate_content(self, value):
+        """验证内容长度不超过70个字符"""
+        if len(value) > 70:
+            raise serializers.ValidationError("内容长度不能超过70个字符")
+        return value
+
     def create(self, validated_data):
         """创建新的行动建议"""
         return ActionAdvice.objects.create(**validated_data)
