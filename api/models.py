@@ -28,3 +28,14 @@ class ActionAdvice(Document):
         'collection': 'action_advice',
         'ordering': ['-created_at']
     }
+
+# 鸡汤数据模型
+class ChickenSoup(Document):
+    content = StringField(required=True, max_length=70)  # 鸡汤内容，最大长度70个字符
+    is_active = BooleanField(default=True)  # 启用状态
+    created_at = DateTimeField(default=datetime.now)  # 创建时间
+    
+    meta = {
+        'collection': 'chicken_soup',
+        'ordering': ['-created_at']
+    }

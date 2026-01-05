@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, ActionAdvice
+from .models import User, ActionAdvice, ChickenSoup
 
 #用户序列化器
 class UserSerializer(serializers.Serializer):
@@ -48,6 +48,30 @@ class ActionAdviceSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         """更新现有行动建议"""
         instance.emotion_direction = validated_data.get('emotion_direction', instance.emotion_direction)
+        instance.content = validated_data.get('content', instance.content)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+        return instance
+
+# 鸡汤数据序列化器
+class ChickenSoupSerializer(serializers.Serializer):
+    id = serializers.CharField(read_only=True)  # ID，只读
+    content = serializers.CharField(required=True, max_length=70)  # 鸡汤内容，最大长度70个字符
+    is_active = serializers.BooleanField(default=True)  # 启用状态
+    created_at = serializers.DateTimeField(read_only=True)  # 创建时间，只读
+    
+    def validate_content(self, value):
+        """验证内容长度不超过70个字符"""
+        if len(value) > 70:
+            raise serializers.ValidationError("内容长度不能超过70个字符")
+        return value
+    
+    def create(self, validated_data):
+        """创建新的鸡汤数据"""
+        return ChickenSoup.objects.create(**validated_data)
+    
+    def update(self, instance, validated_data):
+        """更新现有鸡汤数据"""
         instance.content = validated_data.get('content', instance.content)
         instance.is_active = validated_data.get('is_active', instance.is_active)
         instance.save()
