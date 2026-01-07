@@ -1,8 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat
-from .serializers import UserSerializer, ActionAdviceSerializer, ChickenSoupSerializer, PsychologicalChatSerializer
+from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge
+from .serializers import UserSerializer, ActionAdviceSerializer, ChickenSoupSerializer, PsychologicalChatSerializer, PsychologicalKnowledgeSerializer
 import requests
 from django.conf import settings
 
@@ -344,3 +344,57 @@ class PsychologicalChatList(APIView):
                 {"code": 201, "message": "请求失败，请重新尝试"},
                 status=status.HTTP_201_CREATED
             )
+
+class PsychologicalKnowledgeList(APIView):
+    """心理知识分类列表视图 - 用于获取所有心理知识分类和创建新的心理知识分类"""
+    
+    def get(self, request):
+        """获取心理知识分类列表"""
+        psychological_knowledges = PsychologicalKnowledge.objects.all()
+        serializer = PsychologicalKnowledgeSerializer(psychological_knowledges, many=True)
+        return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        """创建新的心理知识分类"""
+        serializer = PsychologicalKnowledgeSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
+        return Response({"code": 201, "errors": serializer.errors}, status=status.HTTP_201_CREATED)
+
+class PsychologicalKnowledgeDetail(APIView):
+    """心理知识分类详情视图 - 用于获取、更新和删除单个心理知识分类"""
+    
+    def get_object(self, pk):
+        """根据ID获取心理知识分类对象"""
+        try:
+            return PsychologicalKnowledge.objects.get(pk=pk)
+        except PsychologicalKnowledge.DoesNotExist:
+            return None
+    
+    def get(self, request, pk):
+        """获取单个心理知识分类的详情"""
+        psychological_knowledge = self.get_object(pk)
+        if psychological_knowledge is None:
+            return Response({"code": 201, "message": "心理知识分类不存在"}, status=status.HTTP_201_CREATED)
+        serializer = PsychologicalKnowledgeSerializer(psychological_knowledge)
+        return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
+    
+    def put(self, request, pk):
+        """更新心理知识分类"""
+        psychological_knowledge = self.get_object(pk)
+        if psychological_knowledge is None:
+            return Response({"code": 201, "message": "心理知识分类不存在"}, status=status.HTTP_201_CREATED)
+        serializer = PsychologicalKnowledgeSerializer(psychological_knowledge, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
+        return Response({"code": 201, "errors": serializer.errors}, status=status.HTTP_201_CREATED)
+    
+    def delete(self, request, pk):
+        """删除心理知识分类"""
+        psychological_knowledge = self.get_object(pk)
+        if psychological_knowledge is None:
+            return Response({"code": 201, "message": "心理知识分类不存在"}, status=status.HTTP_201_CREATED)
+        psychological_knowledge.delete()
+        return Response({"code": 200, "message": "删除成功"}, status=status.HTTP_200_OK)

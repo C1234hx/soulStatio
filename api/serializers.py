@@ -107,15 +107,13 @@ class PsychologicalKnowledgeChildSerializer(serializers.Serializer):
     content = serializers.CharField(required=True, max_length=500)
     is_active = serializers.BooleanField(default=True)
     created_at = serializers.DateTimeField(read_only=True)
+    childrens = serializers.SerializerMethodField()
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # 延迟添加childrens字段以避免循环引用问题
-        self.fields['childrens'] = serializers.ListField(
-            child=PsychologicalKnowledgeChildSerializer(),
-            required=False,
-            default=list
-        )
+    def get_childrens(self, obj):
+        # 使用SerializerMethodField处理递归序列化
+        if hasattr(obj, 'childrens') and obj.childrens:
+            return PsychologicalKnowledgeChildSerializer(obj.childrens, many=True).data
+        return []
 
 # 心理知识主分类序列化器
 class PsychologicalKnowledgeSerializer(serializers.Serializer):

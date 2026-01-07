@@ -1,4 +1,4 @@
-from mongoengine import Document, StringField, IntField, DateTimeField, BooleanField, EmbeddedDocument, EmbeddedDocumentList, ReferenceField
+from mongoengine import Document, StringField, IntField, DateTimeField, BooleanField, EmbeddedDocument, EmbeddedDocumentField, ListField, ReferenceField
 from datetime import datetime
 
 # 用户模型
@@ -55,7 +55,7 @@ class PsychologicalChat(Document):
 class PsychologicalKnowledgeChild(EmbeddedDocument):
     id = StringField(required=True, primary_key=True)  # 子分类ID
     content = StringField(required=True, max_length=500)  # 子分类内容
-    childrens = EmbeddedDocumentList('self', default=list)  # 递归嵌套子分类
+    childrens = ListField(EmbeddedDocumentField('self'), default=list)  # 递归嵌套子分类
     is_active = BooleanField(default=True)  # 启用状态
     created_at = DateTimeField(default=datetime.now)  # 创建时间
 
@@ -63,7 +63,7 @@ class PsychologicalKnowledgeChild(EmbeddedDocument):
 class PsychologicalKnowledge(Document):
     id = StringField(required=True, primary_key=True)  # 主分类ID
     content = StringField(required=True, max_length=500)  # 主分类内容
-    childrens = EmbeddedDocumentList(PsychologicalKnowledgeChild, default=list)  # 子分类列表
+    childrens = ListField(EmbeddedDocumentField(PsychologicalKnowledgeChild), default=list)  # 子分类列表
     is_active = BooleanField(default=True)  # 启用状态
     created_at = DateTimeField(default=datetime.now)  # 创建时间
     updated_at = DateTimeField(default=datetime.now)  # 更新时间
