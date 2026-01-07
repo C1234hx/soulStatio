@@ -132,3 +132,8 @@ STATIC_URL = 'static/'
 
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True
+
+# AI接口配置
+API_KEY_AI = 'tRZtbLSChHuywNRdCHwk:xnetczCFiBixgYvFOdWL'  # 用户提供的AI API密钥
+AI_API_ENDPOINT = 'https://spark-api-open.xf-yun.com/v2/chat/completions'  # 用户提供的AI API端点
+AI_API_TIMEOUT = (60, 120)  # AI接口超时时间：(连接超时60秒, 读取超时120秒)

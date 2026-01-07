@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, ActionAdvice, ChickenSoup
+from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge, PsychologicalKnowledgeChild
 
 #用户序列化器
 class UserSerializer(serializers.Serializer):
@@ -73,6 +73,71 @@ class ChickenSoupSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         """更新现有鸡汤数据"""
         instance.content = validated_data.get('content', instance.content)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+        return instance
+
+# 心理咨询聊天数据序列化器
+class PsychologicalChatSerializer(serializers.Serializer):
+    id = serializers.CharField(read_only=True)  # ID，只读
+    sender = serializers.ChoiceField(required=True, choices=['user', 'ai'])  # 发送人：user或ai
+    content = serializers.CharField(required=True, max_length=1000)  # 发送内容，最大1000字符
+    created_at = serializers.DateTimeField(read_only=True)  # 创建时间，只读
+    
+    def validate_content(self, value):
+        """验证内容长度不超过1000个字符"""
+        if len(value) > 1000:
+            raise serializers.ValidationError("内容长度不能超过1000个字符")
+        return value
+    
+    def create(self, validated_data):
+        """创建新的心理咨询聊天记录"""
+        return PsychologicalChat.objects.create(**validated_data)
+    
+    def update(self, instance, validated_data):
+        """更新现有心理咨询聊天记录"""
+        instance.sender = validated_data.get('sender', instance.sender)
+        instance.content = validated_data.get('content', instance.content)
+        instance.save()
+        return instance
+
+# 心理知识子分类序列化器（递归结构）
+class PsychologicalKnowledgeChildSerializer(serializers.Serializer):
+    id = serializers.CharField(required=True)
+    content = serializers.CharField(required=True, max_length=500)
+    is_active = serializers.BooleanField(default=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 延迟添加childrens字段以避免循环引用问题
+        self.fields['childrens'] = serializers.ListField(
+            child=PsychologicalKnowledgeChildSerializer(),
+            required=False,
+            default=list
+        )
+
+# 心理知识主分类序列化器
+class PsychologicalKnowledgeSerializer(serializers.Serializer):
+    id = serializers.CharField(required=True)
+    content = serializers.CharField(required=True, max_length=500)
+    childrens = serializers.ListField(
+        child=PsychologicalKnowledgeChildSerializer(),
+        required=False,
+        default=list
+    )
+    is_active = serializers.BooleanField(default=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    
+    def create(self, validated_data):
+        """创建新的心理知识分类"""
+        return PsychologicalKnowledge.objects.create(**validated_data)
+    
+    def update(self, instance, validated_data):
+        """更新现有心理知识分类"""
+        instance.content = validated_data.get('content', instance.content)
+        instance.childrens = validated_data.get('childrens', instance.childrens)
         instance.is_active = validated_data.get('is_active', instance.is_active)
         instance.save()
         return instance
