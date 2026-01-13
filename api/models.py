@@ -1,4 +1,5 @@
 from mongoengine import Document, StringField, IntField, DateTimeField, BooleanField, EmbeddedDocument, EmbeddedDocumentField, ListField, ReferenceField
+from bson import ObjectId
 from datetime import datetime
 
 # 用户模型
@@ -51,24 +52,23 @@ class PsychologicalChat(Document):
         'ordering': ['-created_at']
     }
 
-# 心理知识子分类嵌入式文档
-class PsychologicalKnowledgeChild(EmbeddedDocument):
-    id = StringField(required=True, primary_key=True)  # 子分类ID
-    content = StringField(required=True, max_length=500)  # 子分类内容
-    childrens = ListField(EmbeddedDocumentField('self'), default=list)  # 递归嵌套子分类
-    is_active = BooleanField(default=True)  # 启用状态
-    created_at = DateTimeField(default=datetime.now)  # 创建时间
-
-# 心理知识主分类模型
+# 心理知识模型（仅存储主分类）
 class PsychologicalKnowledge(Document):
-    id = StringField(required=True, primary_key=True)  # 主分类ID
-    content = StringField(required=True, max_length=500)  # 主分类内容
-    childrens = ListField(EmbeddedDocumentField(PsychologicalKnowledgeChild), default=list)  # 子分类列表
+    title = StringField(required=True, max_length=20)  # 标题
+    content = StringField(required=True, max_length=500)  # 内容
     is_active = BooleanField(default=True)  # 启用状态
-    created_at = DateTimeField(default=datetime.now)  # 创建时间
-    updated_at = DateTimeField(default=datetime.now)  # 更新时间
     
     meta = {
-        'collection': 'psychological_knowledge',
-        'ordering': ['-created_at']
+        'collection': 'psychological_knowledge'
+    }
+
+# 心理知识详情模型（存储子分类）
+class PsychologicalKnowledgeDetail(Document):
+    title = StringField(required=True, max_length=20)  # 标题
+    content = StringField(required=True, max_length=500)  # 内容
+    parent_id = StringField(required=True, max_length=24)  # 父节点ID，指向大分类的id
+    parent_title = StringField(max_length=20, default=None)  # 父分类标题，最顶层节点为None
+    is_active = BooleanField(default=True)  # 启用状态
+    meta = {
+        'collection': 'psychological_knowledge_detail'
     }

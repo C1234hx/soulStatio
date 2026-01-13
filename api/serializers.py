@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge, PsychologicalKnowledgeChild
+from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge, PsychologicalKnowledgeDetail
 
 #用户序列化器
 class UserSerializer(serializers.Serializer):
@@ -40,7 +40,7 @@ class ActionAdviceSerializer(serializers.Serializer):
         if len(value) > 70:
             raise serializers.ValidationError("内容长度不能超过70个字符")
         return value
-
+    
     def create(self, validated_data):
         """创建新的行动建议"""
         return ActionAdvice.objects.create(**validated_data)
@@ -101,41 +101,18 @@ class PsychologicalChatSerializer(serializers.Serializer):
         instance.save()
         return instance
 
-# 心理知识子分类序列化器（递归结构）
-class PsychologicalKnowledgeChildSerializer(serializers.Serializer):
-    id = serializers.CharField(required=True)
-    content = serializers.CharField(required=True, max_length=500)
-    is_active = serializers.BooleanField(default=True)
-    created_at = serializers.DateTimeField(read_only=True)
-    childrens = serializers.SerializerMethodField()
-    
-    def get_childrens(self, obj):
-        # 使用SerializerMethodField处理递归序列化
-        if hasattr(obj, 'childrens') and obj.childrens:
-            return PsychologicalKnowledgeChildSerializer(obj.childrens, many=True).data
-        return []
-
 # 心理知识主分类序列化器
 class PsychologicalKnowledgeSerializer(serializers.Serializer):
-    id = serializers.CharField(required=True)
-    content = serializers.CharField(required=True, max_length=500)
-    childrens = serializers.ListField(
-        child=PsychologicalKnowledgeChildSerializer(),
-        required=False,
-        default=list
-    )
-    is_active = serializers.BooleanField(default=True)
-    created_at = serializers.DateTimeField(read_only=True)
-    updated_at = serializers.DateTimeField(read_only=True)
-    
-    def create(self, validated_data):
-        """创建新的心理知识分类"""
-        return PsychologicalKnowledge.objects.create(**validated_data)
-    
-    def update(self, instance, validated_data):
-        """更新现有心理知识分类"""
-        instance.content = validated_data.get('content', instance.content)
-        instance.childrens = validated_data.get('childrens', instance.childrens)
-        instance.is_active = validated_data.get('is_active', instance.is_active)
-        instance.save()
-        return instance
+    id = serializers.CharField(read_only=True)  # MongoDB自动生成的_id
+    title = serializers.CharField(required=True, max_length=20)  # 标题
+    content = serializers.CharField(required=True, max_length=500)  # 内容
+    is_active = serializers.BooleanField(default=True)  # 启用状态
+
+# 心理知识详情序列化器
+class PsychologicalKnowledgeDetailSerializer(serializers.Serializer):
+    id = serializers.CharField(read_only=True)  # MongoDB自动生成的_id
+    title = serializers.CharField(required=True, max_length=20)  # 标题
+    content = serializers.CharField(required=True, max_length=500)  # 内容
+    parent_id = serializers.CharField(required=True, max_length=24)  # 父节点ID，指向主分类的id
+    parent_title = serializers.CharField(required=False, allow_null=True)  # 父分类标题，最顶层节点为None
+    is_active = serializers.BooleanField(default=True)  # 启用状态

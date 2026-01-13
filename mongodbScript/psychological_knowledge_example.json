@@ -1,0 +1,109 @@
+[
+    {
+        "title": "情绪管理",
+        "content": "情绪管理",
+        "childrens": [
+            {
+                "title": "开心",
+                "content": "开心",
+                "childrens": [
+                    {
+                        "title": "积极情绪培养",
+                        "content": "积极情绪培养",
+                        "childrens": []
+                    },
+                    {
+                        "title": "快乐心理学",
+                        "content": "快乐心理学",
+                        "childrens": []
+                    }
+                ]
+            },
+            {
+                "title": "悲伤",
+                "content": "悲伤",
+                "childrens": [
+                    {
+                        "title": "悲伤的正常性",
+                        "content": "悲伤的正常性",
+                        "childrens": []
+                    },
+                    {
+                        "title": "如何走出悲伤",
+                        "content": "如何走出悲伤",
+                        "childrens": []
+                    }
+                ]
+            },
+            {
+                "title": "愤怒",
+                "content": "愤怒",
+                "childrens": [
+                    {
+                        "title": "愤怒的识别",
+                        "content": "愤怒的识别",
+                        "childrens": []
+                    },
+                    {
+                        "title": "愤怒管理技巧",
+                        "content": "愤怒管理技巧",
+                        "childrens": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "title": "人际关系",
+        "content": "人际关系",
+        "childrens": [
+            {
+                "title": "沟通技巧",
+                "content": "沟通技巧",
+                "childrens": []
+            },
+            {
+                "title": "边界设置",
+                "content": "边界设置",
+                "childrens": []
+            },
+            {
+                "title": "冲突解决",
+                "content": "冲突解决",
+                "childrens": []
+            }
+        ]
+    },
+    {
+        "title": "自我成长",
+        "content": "自我成长",
+        "childrens": [
+            {
+                "title": "自我认知",
+                "content": "自我认知",
+                "childrens": [
+                    {
+                        "title": "性格类型",
+                        "content": "性格类型",
+                        "childrens": []
+                    },
+                    {
+                        "title": "优势识别",
+                        "content": "优势识别",
+                        "childrens": []
+                    }
+                ]
+            },
+            {
+                "title": "目标设定",
+                "content": "目标设定",
+                "childrens": []
+            },
+            {
+                "title": "时间管理",
+                "content": "时间管理",
+                "childrens": []
+            }
+        ]
+    }
+]
