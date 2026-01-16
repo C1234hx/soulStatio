@@ -107,6 +107,16 @@ class PsychologicalKnowledgeSerializer(serializers.Serializer):
     title = serializers.CharField(required=True, max_length=20)  # 标题
     content = serializers.CharField(required=True, max_length=500)  # 内容
     is_active = serializers.BooleanField(default=True)  # 启用状态
+    
+    def create(self, validated_data):
+        return PsychologicalKnowledge.objects.create(**validated_data)
+    
+    def update(self, instance, validated_data):
+        instance.title = validated_data.get('title', instance.title)
+        instance.content = validated_data.get('content', instance.content)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+        return instance
 
 # 心理知识详情序列化器
 class PsychologicalKnowledgeDetailSerializer(serializers.Serializer):
@@ -116,3 +126,15 @@ class PsychologicalKnowledgeDetailSerializer(serializers.Serializer):
     parent_id = serializers.CharField(required=True, max_length=24)  # 父节点ID，指向主分类的id
     parent_title = serializers.CharField(required=False, allow_null=True)  # 父分类标题，最顶层节点为None
     is_active = serializers.BooleanField(default=True)  # 启用状态
+    
+    def create(self, validated_data):
+        return PsychologicalKnowledgeDetail.objects.create(**validated_data)
+    
+    def update(self, instance, validated_data):
+        instance.title = validated_data.get('title', instance.title)
+        instance.content = validated_data.get('content', instance.content)
+        instance.parent_id = validated_data.get('parent_id', instance.parent_id)
+        instance.parent_title = validated_data.get('parent_title', instance.parent_title)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+        return instance
