@@ -1,0 +1,40 @@
+# Python相关
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Django相关
+db.sqlite3
+*.log
+local_settings.py
+
+# 环境变量
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 编辑器相关
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 操作系统相关
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# 其他
+qc/
+*.zip
+*.tar.gz
+*.rar
