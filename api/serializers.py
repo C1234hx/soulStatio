@@ -12,6 +12,10 @@ class UserSerializer(serializers.Serializer):
     is_active = serializers.BooleanField(default=True)  # 启用状态
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
+    # 微信登录相关字段
+    openid = serializers.CharField(required=False, max_length=100)
+    nickname = serializers.CharField(required=False, max_length=50)
+    avatar = serializers.CharField(required=False, max_length=255)
     
     def create(self, validated_data):
         return User.objects.create(**validated_data)
@@ -24,6 +28,10 @@ class UserSerializer(serializers.Serializer):
         instance.age = validated_data.get('age', instance.age)
         instance.is_admin = validated_data.get('is_admin', instance.is_admin)
         instance.is_active = validated_data.get('is_active', instance.is_active)
+        # 更新微信登录相关字段
+        instance.openid = validated_data.get('openid', instance.openid)
+        instance.nickname = validated_data.get('nickname', instance.nickname)
+        instance.avatar = validated_data.get('avatar', instance.avatar)
         instance.save()
         return instance
 

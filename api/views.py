@@ -4,6 +4,8 @@ from rest_framework import status
 from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge, PsychologicalKnowledgeDetail
 from .serializers import UserSerializer, ActionAdviceSerializer, ChickenSoupSerializer, PsychologicalChatSerializer, PsychologicalKnowledgeSerializer, PsychologicalKnowledgeDetailSerializer
 import requests
+import jwt
+import time
 from django.conf import settings
 
 class UserList(APIView):
@@ -374,4 +376,76 @@ class PsychologicalKnowledgeDetailByParentId(APIView):
         details = PsychologicalKnowledgeDetail.objects.filter(parent_id=parent_id)
         serializer = PsychologicalKnowledgeDetailSerializer(details, many=True)
         return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
+
+class WechatLogin(APIView):
+    """微信登录视图 - 处理微信小程序登录逻辑"""
+    
+    def post(self, request):
+        """处理微信登录请求"""
+        # 获取前端发送的code
+        code = request.data.get('code')
+        if not code:
+            return Response({"code": 201, "message": "缺少code参数"}, status=status.HTTP_201_CREATED)
+        
+        # 获取前端发送的用户信息
+        nickname = request.data.get('nickname', '微信用户')
+        avatar = request.data.get('avatar', '')
+        
+        try:
+            # 调用微信官方API获取openid和session_key
+            appid = 'wxc2e5a8111bf8c8ee'  # 替换为你的微信小程序appid
+            secret = '452aa98fcc5fdf5957a1af4e62c47bce'  # 替换为你的微信小程序secret
+            url = f'https://api.weixin.qq.com/sns/jscode2session?appid={appid}&secret={secret}&js_code={code}&grant_type=authorization_code'
+            
+            response = requests.get(url, timeout=10)
+            data = response.json()
+            
+            # 检查是否获取成功
+            if 'openid' not in data:
+                return Response({"code": 201, "message": f"获取openid失败: {data.get('errmsg', '未知错误')}"}, status=status.HTTP_201_CREATED)
+            
+            openid = data['openid']
+            session_key = data.get('session_key')
+            
+            # 检查用户是否已存在
+            try:
+                user = User.objects.get(openid=openid)
+                # 更新用户信息
+                user.nickname = nickname
+                user.avatar = avatar
+                user.save()
+            except User.DoesNotExist:
+                # 创建新用户
+                user = User(
+                    openid=openid,
+                    nickname=nickname,
+                    avatar=avatar,
+                    is_admin=False
+                )
+                user.save()
+            
+            # 生成JWT token
+            payload = {
+                'user_id': str(user.id),
+                'openid': openid,
+                'exp': time.time() + 86400 * 7  # 7天过期
+            }
+            token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+            
+            # 返回用户信息和token
+            return Response({
+                "code": 200,
+                "data": {
+                    "token": token,
+                    "user_info": {
+                        "avatar": user.avatar,
+                        "nickname": user.nickname,
+                        "is_admin": user.is_admin
+                    }
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"微信登录失败: {str(e)}")
+            return Response({"code": 201, "message": "登录失败，请重试"}, status=status.HTTP_201_CREATED)
 
