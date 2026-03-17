@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge, PsychologicalKnowledgeDetail
+from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge, PsychologicalKnowledgeDetail, PsychologicalQnA
 
 #用户序列化器
 class UserSerializer(serializers.Serializer):
@@ -143,6 +143,40 @@ class PsychologicalKnowledgeDetailSerializer(serializers.Serializer):
         instance.content = validated_data.get('content', instance.content)
         instance.parent_id = validated_data.get('parent_id', instance.parent_id)
         instance.parent_title = validated_data.get('parent_title', instance.parent_title)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+        return instance
+
+# 心理知识问答序列化器
+class PsychologicalQnASerializer(serializers.Serializer):
+    id = serializers.CharField(read_only=True)  # ID，只读
+    question = serializers.CharField(required=True, max_length=200)  # 问题
+    answer = serializers.CharField(required=True, max_length=1000)  # 答案
+    category = serializers.CharField(required=True, max_length=50)  # 分类
+    is_active = serializers.BooleanField(default=True)  # 启用状态
+    created_at = serializers.DateTimeField(read_only=True)  # 创建时间，只读
+    
+    def validate_question(self, value):
+        """验证问题长度不超过200个字符"""
+        if len(value) > 200:
+            raise serializers.ValidationError("问题长度不能超过200个字符")
+        return value
+    
+    def validate_answer(self, value):
+        """验证答案长度不超过1000个字符"""
+        if len(value) > 1000:
+            raise serializers.ValidationError("答案长度不能超过1000个字符")
+        return value
+    
+    def create(self, validated_data):
+        """创建新的心理知识问答"""
+        return PsychologicalQnA.objects.create(**validated_data)
+    
+    def update(self, instance, validated_data):
+        """更新现有心理知识问答"""
+        instance.question = validated_data.get('question', instance.question)
+        instance.answer = validated_data.get('answer', instance.answer)
+        instance.category = validated_data.get('category', instance.category)
         instance.is_active = validated_data.get('is_active', instance.is_active)
         instance.save()
         return instance

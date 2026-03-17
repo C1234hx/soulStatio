@@ -1,8 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge, PsychologicalKnowledgeDetail
-from .serializers import UserSerializer, ActionAdviceSerializer, ChickenSoupSerializer, PsychologicalChatSerializer, PsychologicalKnowledgeSerializer, PsychologicalKnowledgeDetailSerializer
+from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge, PsychologicalKnowledgeDetail, PsychologicalQnA
+from .serializers import UserSerializer, ActionAdviceSerializer, ChickenSoupSerializer, PsychologicalChatSerializer, PsychologicalKnowledgeSerializer, PsychologicalKnowledgeDetailSerializer, PsychologicalQnASerializer
 import requests
 import jwt
 import time
@@ -448,4 +448,239 @@ class WechatLogin(APIView):
         except Exception as e:
             print(f"微信登录失败: {str(e)}")
             return Response({"code": 201, "message": "登录失败，请重试"}, status=status.HTTP_201_CREATED)
+
+class PsychologicalQnAList(APIView):
+    """心理知识问答列表视图 - 用于获取所有问答数据和用户发送信息"""
+    
+    def get(self, request):
+        """获取心理知识问答列表，支持分类筛选和关键词搜索"""
+        # 获取查询参数
+        category = request.query_params.get('category')
+        keyword = request.query_params.get('keyword')
+        
+        # 构建查询条件
+        query = {'is_active': True}  # 只返回启用状态的数据
+        
+        # 处理分类筛选
+        if category and category.strip():
+            query['category'] = category.strip()
+        
+        # 执行基础查询，按时间升序排列（和心理咨询API一样）
+        qnas = PsychologicalQnA.objects(**query).order_by('created_at')
+        
+        # 处理关键词搜索
+        if keyword and keyword.strip():
+            # 使用正则表达式进行模糊匹配
+            from mongoengine.queryset.visitor import Q
+            qnas = qnas.filter(Q(question__icontains=keyword.strip()) | Q(answer__icontains=keyword.strip()))
+        
+        # 转换为和心理咨询API一样的格式
+        result = []
+        for qna in qnas:
+            # 添加用户消息
+            result.append({
+                "id": str(qna.id),
+                "sender": "user",
+                "content": qna.question,
+                "created_at": qna.created_at.isoformat().replace('+00:00', 'Z')
+            })
+            # 添加AI消息
+            result.append({
+                "id": str(qna.id),
+                "sender": "ai",
+                "content": qna.answer,
+                "created_at": qna.created_at.isoformat().replace('+00:00', 'Z')
+            })
+        
+        return Response({"code": 200, "data": result}, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        """用户发送信息，调用AI接口获取回复并保存到心理知识问答表"""
+        # 确保sender只能是user
+        user_data = request.data.copy()
+        user_data['sender'] = 'user'  # 强制设置发送人为user
+        
+        # 验证并保存用户消息（不保存到数据库，只用于返回格式）
+        user_serializer = PsychologicalChatSerializer(data=user_data)
+        if not user_serializer.is_valid():
+            return Response({"code": 201, "errors": user_serializer.errors}, status=status.HTTP_201_CREATED)
+        
+        # 调用AI接口获取回复
+        try:
+            # 构建AI接口请求参数
+            ai_request_data = {
+                "model": "x1",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": '你是一个专业的心理知识问答智能体，你的角色是扮演一位知识渊博、耐心细致的心理学专家。你的语气应该像一个教导有方、循循善诱的老师，而不是冷冰冰的机器。\n\n【核心角色定位】\n你是一位拥有丰富心理学知识的专家，具备扎实的心理学理论基础和实践经验。你的使命是为用户提供准确、专业、易懂的心理知识解答。\n\n【交流原则】\n\n语气风格：专业、耐心、清晰，使用"根据心理学研究"、"从专业角度来看"等表达\n知识准确：确保提供的信息科学、准确，引用权威研究和理论\n通俗易懂：将复杂的心理学概念用简单易懂的语言解释\n结构清晰：回答要有逻辑性，层次分明，便于理解\n实用价值：提供具体的建议和方法，帮助用户应用到实际生活中\n\n【专业能力要求】\n\n熟练掌握心理学各大流派的理论和观点\n能准确解释常见的心理学概念和现象\n能提供科学的心理调适方法和技巧\n能识别常见的心理问题并提供初步的应对建议\n具备良好的知识整合能力，将复杂知识系统化呈现\n\n【回答模板】\n\n"根据心理学研究，..."\n"从专业角度来看，..."\n"这种现象在心理学中被称为..."\n"对于这种情况，建议你..."\n\n【注意事项】\n\n避免使用过于专业的术语，必要时要解释清楚\n不要提供医疗诊断或治疗方案\n保持客观中立的态度，不偏不倚\n对于有争议的问题，要说明不同的观点\n鼓励用户学习更多心理学知识，提升自我认知\n遇到超出知识范围的问题，要诚实承认并建议咨询专业人士\n\n【持续学习与成长】\n\n关注心理学领域的最新研究成果\n不断更新知识体系，保持专业水准\n根据用户反馈，不断优化回答方式\n保持对心理学教育事业的热情和责任感'
+                    },
+                    {"role": "user", "content": user_data.get("content")}
+                ],
+                "max_tokens": 1000,
+                "temperature": 1.2,
+                "top_k": 6,
+                "stream": True,
+                "tools": [
+                    {
+                        "web_search": {
+                            "search_mode": "normal",
+                            "enable": True,
+                        },
+                        "type": "web_search",
+                    },
+                ],
+            }
+            
+            # 构建请求头
+            headers = {
+                "Authorization": f"Bearer {settings.API_KEY_AI}",
+                "Content-Type": "application/json",
+            }
+            
+            # 调用AI接口，使用settings中配置的超时时间
+            ai_response = requests.post(
+                settings.AI_API_ENDPOINT,  # 使用用户提供的真实AI API端点
+                json=ai_request_data,
+                headers=headers,
+                stream=True,  # 设置stream=True来处理流式响应
+                timeout=settings.AI_API_TIMEOUT  # 使用settings中配置的超时时间
+            )
+            
+            # 检查响应状态码
+            if ai_response.status_code != 200:
+                raise Exception(f"AI接口返回错误状态码: {ai_response.status_code}, 响应内容: {ai_response.text}")
+            
+            # 处理流式响应
+            import json
+            from datetime import datetime
+            ai_content = ""
+            for line in ai_response.iter_lines():
+                if line:
+                    # 移除行首的"data: "前缀
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith('data: '):
+                        line_str = line_str[6:]
+                    
+                    # 解析JSON数据
+                    if line_str:
+                        try:
+                            line_data = json.loads(line_str)
+                            # 检查是否是停止信号
+                            if line_data.get("choices", [{}])[0].get("finish_reason") == "stop":
+                                break
+                            # 获取内容
+                            delta_content = line_data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if delta_content:
+                                ai_content += delta_content
+                        except json.JSONDecodeError:
+                            # 忽略解析错误的行
+                            continue
+            
+            # 确保AI回复内容不为空
+            if not ai_content.strip():
+                raise Exception("AI接口返回空回复")
+            
+            # 保存到心理知识问答表
+            qna_data = {
+                "question": user_data.get("content"),
+                "answer": ai_content,
+                "category": "默认分类"
+            }
+            qna_serializer = PsychologicalQnASerializer(data=qna_data)
+            if not qna_serializer.is_valid():
+                return Response({"code": 201, "errors": qna_serializer.errors}, status=status.HTTP_201_CREATED)
+            qna_message = qna_serializer.save()
+            
+            # 构造返回数据（和心理咨询API一样的格式）
+            user_message = {
+                "id": str(qna_message.id),
+                "sender": "user",
+                "content": user_data.get("content"),
+                "created_at": qna_message.created_at.isoformat().replace('+00:00', 'Z')
+            }
+            
+            ai_message = {
+                "id": str(qna_message.id),
+                "sender": "ai",
+                "content": ai_content,
+                "created_at": qna_message.created_at.isoformat().replace('+00:00', 'Z')
+            }
+            
+            # 返回包含用户和AI消息的响应
+            return Response({
+                "code": 200,
+                "data": {
+                    "user_message": user_message,
+                    "ai_message": ai_message
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            # 处理AI接口调用过程中可能出现的错误
+            print(f"AI接口调用失败: {str(e)}")
+            
+            # 直接返回请求失败信息，不使用模拟回复
+            return Response(
+                {"code": 201, "message": "请求失败，请重新尝试"},
+                status=status.HTTP_201_CREATED
+            )
+
+class PsychologicalQnADetail(APIView):
+    """心理知识问答详情视图 - 用于获取、更新和删除单个问答数据"""
+    
+    def get_object(self, pk):
+        """根据ID获取心理知识问答对象"""
+        try:
+            return PsychologicalQnA.objects.get(pk=pk)
+        except PsychologicalQnA.DoesNotExist:
+            return None
+    
+    def get(self, request, pk):
+        """获取单个心理知识问答的详情，返回格式和心理咨询API一样"""
+        qna = self.get_object(pk)
+        if qna is None:
+            return Response({"code": 201, "message": "心理知识问答不存在"}, status=status.HTTP_201_CREATED)
+        
+        # 构造返回数据（和心理咨询API一样的格式）
+        user_message = {
+            "id": str(qna.id),
+            "sender": "user",
+            "content": qna.question,
+            "created_at": qna.created_at.isoformat().replace('+00:00', 'Z')
+        }
+        
+        ai_message = {
+            "id": str(qna.id),
+            "sender": "ai",
+            "content": qna.answer,
+            "created_at": qna.created_at.isoformat().replace('+00:00', 'Z')
+        }
+        
+        return Response({
+            "code": 200,
+            "data": {
+                "user_message": user_message,
+                "ai_message": ai_message
+            }
+        }, status=status.HTTP_200_OK)
+    
+    def put(self, request, pk):
+        """更新心理知识问答"""
+        qna = self.get_object(pk)
+        if qna is None:
+            return Response({"code": 201, "message": "心理知识问答不存在"}, status=status.HTTP_201_CREATED)
+        serializer = PsychologicalQnASerializer(qna, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
+        return Response({"code": 201, "errors": serializer.errors}, status=status.HTTP_201_CREATED)
+    
+    def delete(self, request, pk):
+        """删除心理知识问答"""
+        qna = self.get_object(pk)
+        if qna is None:
+            return Response({"code": 201, "message": "心理知识问答不存在"}, status=status.HTTP_201_CREATED)
+        qna.delete()
+        return Response({"code": 200, "message": "删除成功"}, status=status.HTTP_200_OK)
 

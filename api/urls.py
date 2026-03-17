@@ -1,5 +1,5 @@
 from django.urls import path, re_path
-from .views import UserList, UserDetail, ActionAdviceList, ActionAdviceDetail, ChickenSoupList, ChickenSoupDetail, ActionAdviceRandom, ChickenSoupRandom, PsychologicalChatList, PsychologicalKnowledgeMainList, PsychologicalKnowledgeDetailByParentId, WechatLogin
+from .views import UserList, UserDetail, ActionAdviceList, ActionAdviceDetail, ChickenSoupList, ChickenSoupDetail, ActionAdviceRandom, ChickenSoupRandom, PsychologicalChatList, PsychologicalKnowledgeMainList, PsychologicalKnowledgeDetailByParentId, WechatLogin, PsychologicalQnAList, PsychologicalQnADetail
 
 urlpatterns = [
     # 用户相关路由
@@ -25,4 +25,8 @@ urlpatterns = [
     
     # 微信登录相关路由
     path('wechat/login/', WechatLogin.as_view(), name='wechat-login'),
+    
+    # 心理知识问答相关路由
+    path('psychological-qna/', PsychologicalQnAList.as_view(), name='psychological-qna-list'),
+    re_path(r'^psychological-qna/(?P<pk>[^/]+)/?$', PsychologicalQnADetail.as_view(), name='psychological-qna-detail'),
 ]
