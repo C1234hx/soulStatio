@@ -386,6 +386,7 @@ class UserMoodAnalysis(APIView):
             from datetime import datetime, timedelta
             import re
             from collections import Counter
+            import requests
             
             # 计算7天前的日期
             today = datetime.now()
@@ -401,30 +402,55 @@ class UserMoodAnalysis(APIView):
                 start_of_day = current_date.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_of_day = current_date.replace(hour=23, minute=59, second=59, microsecond=999999)
                 
-                chats = PsychologicalChat.objects(
+                # 直接查询用户消息，使用only方法只查询需要的字段
+                user_messages = PsychologicalChat.objects(
                     created_at__gte=start_of_day,
-                    created_at__lte=end_of_day
-                )
+                    created_at__lte=end_of_day,
+                    sender='user'
+                ).only('content')  # 只查询content字段，避免查询sentiment_score
                 
-                # 简单的心情指数计算逻辑
-                # 基于用户发送的消息长度和频率
-                user_messages = chats(sender='user')
                 message_count = user_messages.count()
-                total_length = sum(len(chat.content) for chat in user_messages)
                 
-                # 计算心情指数（0-100）
-                # 消息长度适中且频率适中的情况下心情较好
                 if message_count == 0:
                     mood_value = 50  # 无消息默认值
                 else:
-                    # 基于消息长度和频率的简单算法
-                    avg_length = total_length / message_count
-                    # 理想的平均消息长度是50-150字符
-                    length_score = max(0, 100 - abs(avg_length - 100) / 2)
-                    # 理想的消息频率是3-8条
-                    frequency_score = max(0, 100 - abs(message_count - 5) * 10)
-                    # 综合得分
-                    mood_value = int((length_score + frequency_score) / 2)
+                    # 合并所有用户消息为一个文本
+                    all_content = " ".join(chat.content for chat in user_messages)
+                    
+                    # 尝试使用百度情感分析API
+                    try:
+                        # 获取百度API token
+                        API_KEY = "xpVdKMZPqXwcbESkQmJcGqj5"
+                        SECRET_KEY = "82v8U8qgGWG247ltw4pFuOrQUVsElT7n"
+                        token_url = "https://aip.baidubce.com/oauth/2.0/token"
+                        token_params = {"grant_type": "client_credentials", "client_id": API_KEY, "client_secret": SECRET_KEY}
+                        
+                        token_response = requests.post(token_url, params=token_params, timeout=10)
+                        token_data = token_response.json()
+                        access_token = token_data.get("access_token")
+                        
+                        if access_token:
+                            # 调用情感分析API
+                            sentiment_url = f"https://aip.baidubce.com/rpc/2.0/nlp/v1/sentiment_classify?charset=UTF-8&access_token={access_token}"
+                            payload = {"text": all_content}
+                            headers = {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            }
+                            
+                            sentiment_response = requests.post(sentiment_url, headers=headers, json=payload, timeout=15)
+                            sentiment_data = sentiment_response.json()
+                            
+                            if "items" in sentiment_data and sentiment_data["items"]:
+                                positive_prob = sentiment_data["items"][0].get("positive_prob", 0.5)
+                                mood_value = int(positive_prob * 100)
+                            else:
+                                mood_value = 50  # 默认值
+                        else:
+                            mood_value = 50  # 默认值
+                    except Exception as api_error:
+                        print(f"百度情感分析API调用失败: {str(api_error)}")
+                        mood_value = 50  # 失败时使用默认值
                 
                 mood_data.append({"date": date_str, "value": mood_value})
             
@@ -432,14 +458,13 @@ class UserMoodAnalysis(APIView):
             today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
             today_chats = PsychologicalChat.objects(
                 created_at__gte=today_start,
-                sender='user'  # 只分析用户的消息
-            )
+                sender='user'
+            ).only('content')  # 只查询content字段
             
             # 合并所有用户消息
             all_content = " ".join(chat.content for chat in today_chats)
             
             # 提取关键词（简单的中文分词和过滤）
-            # 这里使用简单的正则表达式提取中文词汇
             chinese_words = re.findall(r'[\u4e00-\u9fa5]{2,}', all_content)
             
             # 过滤常见虚词

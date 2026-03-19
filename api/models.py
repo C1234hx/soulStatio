@@ -1,4 +1,4 @@
-from mongoengine import Document, StringField, IntField, DateTimeField, BooleanField, EmbeddedDocument, EmbeddedDocumentField, ListField, ReferenceField
+from mongoengine import Document, StringField, IntField, FloatField, DateTimeField, BooleanField, EmbeddedDocument, EmbeddedDocumentField, ListField, ReferenceField
 from bson import ObjectId
 from datetime import datetime
 
@@ -49,6 +49,7 @@ class ChickenSoup(Document):
 class PsychologicalChat(Document):
     sender = StringField(required=True, choices=['user', 'ai'])  # 发送人：user或ai
     content = StringField(required=True, max_length=1000)  # 发送内容，最大1000字符
+    sentiment_score = FloatField(default=0.5)  # 情感分数
     created_at = DateTimeField(default=datetime.now)  # 创建时间
     
     meta = {
