@@ -377,6 +377,99 @@ class PsychologicalKnowledgeDetailByParentId(APIView):
         serializer = PsychologicalKnowledgeDetailSerializer(details, many=True)
         return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
 
+class UserMoodAnalysis(APIView):
+    """用户心情分析视图 - 用于获取7日内心情指数和今日关键词"""
+    
+    def get(self, request):
+        """获取7日内心情指数和今日关键词"""
+        try:
+            from datetime import datetime, timedelta
+            import re
+            from collections import Counter
+            
+            # 计算7天前的日期
+            today = datetime.now()
+            seven_days_ago = today - timedelta(days=6)
+            
+            # 1. 计算7日内心情指数
+            mood_data = []
+            for i in range(7):
+                current_date = seven_days_ago + timedelta(days=i)
+                date_str = current_date.strftime("%m/%d")
+                
+                # 获取当天的聊天记录
+                start_of_day = current_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_of_day = current_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                
+                chats = PsychologicalChat.objects(
+                    created_at__gte=start_of_day,
+                    created_at__lte=end_of_day
+                )
+                
+                # 简单的心情指数计算逻辑
+                # 基于用户发送的消息长度和频率
+                user_messages = chats(sender='user')
+                message_count = user_messages.count()
+                total_length = sum(len(chat.content) for chat in user_messages)
+                
+                # 计算心情指数（0-100）
+                # 消息长度适中且频率适中的情况下心情较好
+                if message_count == 0:
+                    mood_value = 50  # 无消息默认值
+                else:
+                    # 基于消息长度和频率的简单算法
+                    avg_length = total_length / message_count
+                    # 理想的平均消息长度是50-150字符
+                    length_score = max(0, 100 - abs(avg_length - 100) / 2)
+                    # 理想的消息频率是3-8条
+                    frequency_score = max(0, 100 - abs(message_count - 5) * 10)
+                    # 综合得分
+                    mood_value = int((length_score + frequency_score) / 2)
+                
+                mood_data.append({"date": date_str, "value": mood_value})
+            
+            # 2. 提取今日关键词
+            today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_chats = PsychologicalChat.objects(
+                created_at__gte=today_start,
+                sender='user'  # 只分析用户的消息
+            )
+            
+            # 合并所有用户消息
+            all_content = " ".join(chat.content for chat in today_chats)
+            
+            # 提取关键词（简单的中文分词和过滤）
+            # 这里使用简单的正则表达式提取中文词汇
+            chinese_words = re.findall(r'[\u4e00-\u9fa5]{2,}', all_content)
+            
+            # 过滤常见虚词
+            stop_words = {'的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这'}
+            filtered_words = [word for word in chinese_words if word not in stop_words]
+            
+            # 统计词频
+            word_counts = Counter(filtered_words)
+            # 取前5个关键词
+            top_keywords = [
+                {"word": word, "count": count}
+                for word, count in word_counts.most_common(5)
+            ]
+            
+            # 构建返回数据
+            return Response({
+                "code": 200,
+                "data": {
+                    "mood_data": mood_data,
+                    "keywords": top_keywords
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"心情分析失败: {str(e)}")
+            return Response(
+                {"code": 201, "message": "获取心情分析数据失败"},
+                status=status.HTTP_201_CREATED
+            )
+
 class WechatLogin(APIView):
     """微信登录视图 - 处理微信小程序登录逻辑"""
     

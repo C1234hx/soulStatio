@@ -80,7 +80,7 @@ class PsychologicalKnowledgeDetail(Document):
 # 心理知识问答模型（用于存放心理知识问答数据）
 class PsychologicalQnA(Document):
     question = StringField(required=True, max_length=200)  # 问题
-    answer = StringField(required=True, max_length=1000)  # 答案
+    answer = StringField(required=True, max_length=2000)  # 答案，增加长度限制到5000字符
     category = StringField(required=True, max_length=50)  # 分类
     is_active = BooleanField(default=True)  # 启用状态
     created_at = DateTimeField(default=datetime.now)  # 创建时间

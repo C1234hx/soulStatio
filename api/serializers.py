@@ -151,7 +151,7 @@ class PsychologicalKnowledgeDetailSerializer(serializers.Serializer):
 class PsychologicalQnASerializer(serializers.Serializer):
     id = serializers.CharField(read_only=True)  # ID，只读
     question = serializers.CharField(required=True, max_length=200)  # 问题
-    answer = serializers.CharField(required=True, max_length=1000)  # 答案
+    answer = serializers.CharField(required=True, max_length=3000)  # 答案，增加长度限制到5000字符
     category = serializers.CharField(required=True, max_length=50)  # 分类
     is_active = serializers.BooleanField(default=True)  # 启用状态
     created_at = serializers.DateTimeField(read_only=True)  # 创建时间，只读
@@ -163,9 +163,9 @@ class PsychologicalQnASerializer(serializers.Serializer):
         return value
     
     def validate_answer(self, value):
-        """验证答案长度不超过1000个字符"""
-        if len(value) > 1000:
-            raise serializers.ValidationError("答案长度不能超过1000个字符")
+        """验证答案长度不超过5000个字符"""
+        if len(value) > 5000:
+            raise serializers.ValidationError("答案长度不能超过5000个字符")
         return value
     
     def create(self, validated_data):

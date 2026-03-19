@@ -1,5 +1,5 @@
 from django.urls import path, re_path
-from .views import UserList, UserDetail, ActionAdviceList, ActionAdviceDetail, ChickenSoupList, ChickenSoupDetail, ActionAdviceRandom, ChickenSoupRandom, PsychologicalChatList, PsychologicalKnowledgeMainList, PsychologicalKnowledgeDetailByParentId, WechatLogin, PsychologicalQnAList, PsychologicalQnADetail
+from .views import UserList, UserDetail, ActionAdviceList, ActionAdviceDetail, ChickenSoupList, ChickenSoupDetail, ActionAdviceRandom, ChickenSoupRandom, PsychologicalChatList, PsychologicalKnowledgeMainList, PsychologicalKnowledgeDetailByParentId, WechatLogin, PsychologicalQnAList, PsychologicalQnADetail, UserMoodAnalysis
 
 urlpatterns = [
     # 用户相关路由
@@ -18,6 +18,8 @@ urlpatterns = [
     
     # 心理咨询聊天数据路由
     path('psychological-chat/', PsychologicalChatList.as_view(), name='psychological-chat-list'),
+    # 用户心情分析路由
+    path('user-mood-analysis/', UserMoodAnalysis.as_view(), name='user-mood-analysis'),
     
     # 心理知识分类相关路由
     path('psychological-knowledge/main/', PsychologicalKnowledgeMainList.as_view(), name='psychological-knowledge-main-list'),
