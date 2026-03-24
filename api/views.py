@@ -253,8 +253,29 @@ class PsychologicalChatList(APIView):
     
     def get(self, request):
         """获取全部心理咨询聊天数据"""
-        chats = PsychologicalChat.objects.all().order_by('created_at')  # 按时间顺序返回
-        serializer = PsychologicalChatSerializer(chats, many=True)
+        # 按时间倒序获取聊天记录
+        chats = PsychologicalChat.objects.all().order_by('-created_at')  # 按时间倒序返回
+        
+        # 确保AI回复在用户问题下方（用户问题在前，AI回复在后）
+        # 对结果进行重新排序，确保每个用户消息后面跟着对应的AI消息
+        sorted_chats = []
+        
+        # 按时间倒序遍历，确保最新的对话在前面
+        i = 0
+        while i < len(chats):
+            # 检查当前消息是否为AI回复
+            if chats[i].sender == 'ai' and i + 1 < len(chats) and chats[i+1].sender == 'user':
+                # 如果当前是AI回复，且下一条是用户消息，交换顺序
+                sorted_chats.append(chats[i+1])  # 用户消息在前
+                sorted_chats.append(chats[i])    # AI回复在后
+                i += 2
+            else:
+                # 其他情况直接添加
+                sorted_chats.append(chats[i])
+                i += 1
+        
+        # 序列化并返回
+        serializer = PsychologicalChatSerializer(sorted_chats, many=True)
         return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
     
     def post(self, request):
@@ -623,8 +644,8 @@ class PsychologicalQnAList(APIView):
         if category and category.strip():
             query['category'] = category.strip()
         
-        # 执行基础查询，按时间升序排列（和心理咨询API一样）
-        qnas = PsychologicalQnA.objects(**query).order_by('created_at')
+        # 执行基础查询，按时间倒序排列
+        qnas = PsychologicalQnA.objects(**query).order_by('-created_at')
         
         # 处理关键词搜索
         if keyword and keyword.strip():
@@ -642,7 +663,7 @@ class PsychologicalQnAList(APIView):
                 "content": qna.question,
                 "created_at": qna.created_at.isoformat().replace('+00:00', 'Z')
             })
-            # 添加AI消息
+            # 添加AI消息（确保在用户问题下方）
             result.append({
                 "id": str(qna.id),
                 "sender": "ai",
