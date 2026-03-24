@@ -4,9 +4,37 @@ from rest_framework import status
 from .models import User, ActionAdvice, ChickenSoup, PsychologicalChat, PsychologicalKnowledge, PsychologicalKnowledgeDetail, PsychologicalQnA
 from .serializers import UserSerializer, ActionAdviceSerializer, ChickenSoupSerializer, PsychologicalChatSerializer, PsychologicalKnowledgeSerializer, PsychologicalKnowledgeDetailSerializer, PsychologicalQnASerializer
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import jwt
 import time
 from django.conf import settings
+
+# 会话管理类，优化连接池使用
+class SessionManager:
+    _session = None
+    
+    @classmethod
+    def get_session(cls):
+        if cls._session is None:
+            # 创建会话，配置连接池
+            cls._session = requests.Session()
+            # 配置重试策略
+            retries = Retry(
+                total=3,
+                backoff_factor=1,
+                status_forcelist=[429, 500, 502, 503, 504]
+            )
+            # 配置连接池
+            adapter = HTTPAdapter(
+                pool_connections=10,
+                pool_maxsize=10,
+                max_retries=retries
+            )
+            # 应用到所有HTTP/HTTPS请求
+            cls._session.mount('http://', adapter)
+            cls._session.mount('https://', adapter)
+        return cls._session
 
 class UserList(APIView):
     def get(self, request):
@@ -274,8 +302,11 @@ class PsychologicalChatList(APIView):
                 "Content-Type": "application/json",
             }
             
+            # 使用会话管理类获取会话
+            session = SessionManager.get_session()
+            
             # 调用AI接口，使用settings中配置的超时时间
-            ai_response = requests.post(
+            ai_response = session.post(
                 settings.AI_API_ENDPOINT,  # 使用用户提供的真实AI API端点
                 json=ai_request_data,
                 headers=headers,
@@ -283,34 +314,37 @@ class PsychologicalChatList(APIView):
                 timeout=settings.AI_API_TIMEOUT  # 使用settings中配置的超时时间
             )
             
-            # 检查响应状态码
-            if ai_response.status_code != 200:
-                raise Exception(f"AI接口返回错误状态码: {ai_response.status_code}, 响应内容: {ai_response.text}")
-            
-            # 处理流式响应
-            import json
-            ai_content = ""
-            for line in ai_response.iter_lines():
-                if line:
-                    # 移除行首的"data: "前缀
-                    line_str = line.decode('utf-8')
-                    if line_str.startswith('data: '):
-                        line_str = line_str[6:]
-                    
-                    # 解析JSON数据
-                    if line_str:
-                        try:
-                            line_data = json.loads(line_str)
-                            # 检查是否是停止信号
-                            if line_data.get("choices", [{}])[0].get("finish_reason") == "stop":
-                                break
-                            # 获取内容
-                            delta_content = line_data.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                            if delta_content:
-                                ai_content += delta_content
-                        except json.JSONDecodeError:
-                            # 忽略解析错误的行
-                            continue
+            try:
+                # 检查响应状态码
+                if ai_response.status_code != 200:
+                    raise Exception(f"AI接口返回错误状态码: {ai_response.status_code}, 响应内容: {ai_response.text}")
+                
+                # 处理流式响应
+                import json
+                ai_content = ""
+                for line in ai_response.iter_lines():
+                    if line:
+                        # 移除行首的"data: "前缀
+                        line_str = line.decode('utf-8')
+                        if line_str.startswith('data: '):
+                            line_str = line_str[6:]
+                        
+                        # 解析JSON数据
+                        if line_str:
+                            try:
+                                line_data = json.loads(line_str)
+                                # 检查是否是停止信号
+                                if line_data.get("choices", [{}])[0].get("finish_reason") == "stop":
+                                    break
+                                # 获取内容
+                                delta_content = line_data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                if delta_content:
+                                    ai_content += delta_content
+                            except json.JSONDecodeError:
+                                # 忽略解析错误的行
+                                continue
+            finally:
+                ai_response.close()  # 确保响应被关闭
             
             # 确保AI回复内容不为空
             if not ai_content.strip():
@@ -426,28 +460,34 @@ class UserMoodAnalysis(APIView):
                         token_params = {"grant_type": "client_credentials", "client_id": API_KEY, "client_secret": SECRET_KEY}
                         
                         token_response = requests.post(token_url, params=token_params, timeout=10)
-                        token_data = token_response.json()
-                        access_token = token_data.get("access_token")
-                        
-                        if access_token:
-                            # 调用情感分析API
-                            sentiment_url = f"https://aip.baidubce.com/rpc/2.0/nlp/v1/sentiment_classify?charset=UTF-8&access_token={access_token}"
-                            payload = {"text": all_content}
-                            headers = {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json'
-                            }
+                        try:
+                            token_data = token_response.json()
+                            access_token = token_data.get("access_token")
                             
-                            sentiment_response = requests.post(sentiment_url, headers=headers, json=payload, timeout=15)
-                            sentiment_data = sentiment_response.json()
-                            
-                            if "items" in sentiment_data and sentiment_data["items"]:
-                                positive_prob = sentiment_data["items"][0].get("positive_prob", 0.5)
-                                mood_value = int(positive_prob * 100)
+                            if access_token:
+                                # 调用情感分析API
+                                sentiment_url = f"https://aip.baidubce.com/rpc/2.0/nlp/v1/sentiment_classify?charset=UTF-8&access_token={access_token}"
+                                payload = {"text": all_content}
+                                headers = {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                }
+                                
+                                sentiment_response = requests.post(sentiment_url, headers=headers, json=payload, timeout=15)
+                                try:
+                                    sentiment_data = sentiment_response.json()
+                                    
+                                    if "items" in sentiment_data and sentiment_data["items"]:
+                                        positive_prob = sentiment_data["items"][0].get("positive_prob", 0.5)
+                                        mood_value = int(positive_prob * 100)
+                                    else:
+                                        mood_value = 50  # 默认值
+                                finally:
+                                    sentiment_response.close()
                             else:
                                 mood_value = 50  # 默认值
-                        else:
-                            mood_value = 50  # 默认值
+                        finally:
+                            token_response.close()
                     except Exception as api_error:
                         print(f"百度情感分析API调用失败: {str(api_error)}")
                         mood_value = 50  # 失败时使用默认值
@@ -656,8 +696,11 @@ class PsychologicalQnAList(APIView):
                 "Content-Type": "application/json",
             }
             
+            # 使用会话管理类获取会话
+            session = SessionManager.get_session()
+            
             # 调用AI接口，使用settings中配置的超时时间
-            ai_response = requests.post(
+            ai_response = session.post(
                 settings.AI_API_ENDPOINT,  # 使用用户提供的真实AI API端点
                 json=ai_request_data,
                 headers=headers,
@@ -665,35 +708,38 @@ class PsychologicalQnAList(APIView):
                 timeout=settings.AI_API_TIMEOUT  # 使用settings中配置的超时时间
             )
             
-            # 检查响应状态码
-            if ai_response.status_code != 200:
-                raise Exception(f"AI接口返回错误状态码: {ai_response.status_code}, 响应内容: {ai_response.text}")
-            
-            # 处理流式响应
-            import json
-            from datetime import datetime
-            ai_content = ""
-            for line in ai_response.iter_lines():
-                if line:
-                    # 移除行首的"data: "前缀
-                    line_str = line.decode('utf-8')
-                    if line_str.startswith('data: '):
-                        line_str = line_str[6:]
-                    
-                    # 解析JSON数据
-                    if line_str:
-                        try:
-                            line_data = json.loads(line_str)
-                            # 检查是否是停止信号
-                            if line_data.get("choices", [{}])[0].get("finish_reason") == "stop":
-                                break
-                            # 获取内容
-                            delta_content = line_data.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                            if delta_content:
-                                ai_content += delta_content
-                        except json.JSONDecodeError:
-                            # 忽略解析错误的行
-                            continue
+            try:
+                # 检查响应状态码
+                if ai_response.status_code != 200:
+                    raise Exception(f"AI接口返回错误状态码: {ai_response.status_code}, 响应内容: {ai_response.text}")
+                
+                # 处理流式响应
+                import json
+                from datetime import datetime
+                ai_content = ""
+                for line in ai_response.iter_lines():
+                    if line:
+                        # 移除行首的"data: "前缀
+                        line_str = line.decode('utf-8')
+                        if line_str.startswith('data: '):
+                            line_str = line_str[6:]
+                        
+                        # 解析JSON数据
+                        if line_str:
+                            try:
+                                line_data = json.loads(line_str)
+                                # 检查是否是停止信号
+                                if line_data.get("choices", [{}])[0].get("finish_reason") == "stop":
+                                    break
+                                # 获取内容
+                                delta_content = line_data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                if delta_content:
+                                    ai_content += delta_content
+                            except json.JSONDecodeError:
+                                # 忽略解析错误的行
+                                continue
+            finally:
+                ai_response.close()  # 确保响应被关闭
             
             # 确保AI回复内容不为空
             if not ai_content.strip():
