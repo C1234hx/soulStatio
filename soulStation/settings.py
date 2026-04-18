@@ -136,3 +136,11 @@ CORS_ALLOW_ALL_ORIGINS = True
 API_KEY_AI = 'tRZtbLSChHuywNRdCHwk:xnetczCFiBixgYvFOdWL'  # 用户提供的AI API密钥
 AI_API_ENDPOINT = 'https://spark-api-open.xf-yun.com/v2/chat/completions'  # 用户提供的AI API端点
 AI_API_TIMEOUT = (60, 120)  # AI接口超时时间：(连接超时60秒, 读取超时120秒)
+
+# Ollama本地模型配置
+# OLLAMA_API_ENDPOINT = "http://localhost:11434"  # Ollama本地API端点
+# OLLAMA_MODEL = "deepseek-r1:7b"  # 本地部署的模型名称
+
+# Dify本地模型配置（兼容OpenAI API格式）
+DIFY_API_ENDPOINT = "http://172.20.10.3/v1"  # Dify API端点
+DIFY_API_KEY = "app-HLGut8HE6bgyB2ms4JmaDHl6"  # Dify API密钥
