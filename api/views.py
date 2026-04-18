@@ -10,6 +10,31 @@ import jwt
 import time
 from django.conf import settings
 
+# 情感词词典 - 用于心理数据分析的关键词统计
+EMOTION_WORDS = {
+    # 负面情绪词
+    '烦', '烦恼', '烦躁', '郁闷', '不开心', '难过', '伤心', '痛苦', '悲伤', '压抑',
+    '焦虑', '焦虑不安', '紧张', '不安', '害怕', '恐惧', '担忧', '担心', '忧虑',
+    '生气', '愤怒', '暴躁', '烦躁不安', '气愤', '不满', '失望', '绝望', '灰心',
+    '孤单', '孤独', '寂寞', '无助', '无奈', '迷茫', '困惑', '纠结', '矛盾',
+    '自卑', '自责', '愧疚', '后悔', '悔恨', '沮丧', '失落', '低落', '消沉',
+    '疲惫', '累', '疲倦', '倦怠', '心力交瘁', '身心俱疲',
+
+    # 正面情绪词
+    '开心', '高兴', '快乐', '愉快', '幸福', '满足', '满意', '欣慰', '安心',
+    '平静', '放松', '舒适', '自在', '宁静', '舒服', '开心', '喜悦', '愉悦',
+    '希望', '乐观', '积极', '兴奋', '激动', '感激', '感谢', '感动', '温暖',
+    '自信', '骄傲', '自豪', '坚强', '勇敢', '坚定', '有力量', '有希望',
+
+    # 中性但心理相关词
+    '想', '思考', '想想', '思考一下', '觉得', '感觉', '感到', '认为',
+    '需要', '想要', '希望', '期望', '期待',
+    '爱', '喜欢', '爱你', '想念', '思念',
+    '睡不着', '失眠', '睡眠', '困', '想睡',
+    '压力', '压力大', '有压力',
+    '工作', '学习', '生活', '感情', '家庭', '朋友', '人际关系'
+}
+
 # 会话管理类，优化连接池使用
 class SessionManager:
     _session = None
@@ -290,6 +315,34 @@ class PsychologicalChatList(APIView):
             return Response({"code": 201, "errors": user_serializer.errors}, status=status.HTTP_201_CREATED)
         user_message = user_serializer.save()
         
+        # 获取今日历史用户消息，随机抽取2条
+        import random
+        from datetime import datetime
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_user_messages = list(PsychologicalChat.objects(
+            created_at__gte=today_start,
+            sender='user'
+        ).only('content'))  # 只查询content字段
+        
+        # 随机抽取2条历史消息（排除刚发送的这条）
+        history_messages = []
+        if len(today_user_messages) > 1:
+            # 排除刚保存的消息（最后一条）
+            recent_msg_id = str(user_message.id)
+            available_messages = [msg for msg in today_user_messages if str(msg.id) != recent_msg_id]
+            if len(available_messages) >= 2:
+                history_messages = random.sample(available_messages, 2)
+            elif len(available_messages) == 1:
+                history_messages = [available_messages[0]]
+        
+        # 构建带历史上下文的用户消息
+        user_content = user_data.get("content")
+        if history_messages:
+            history_context = "\n\n【历史对话】："
+            for i, hist_msg in enumerate(history_messages, 1):
+                history_context += f"\n{i}. {hist_msg.content}"
+            user_content += history_context
+        
         # 调用AI接口获取回复
         try:
             # 构建AI接口请求参数
@@ -300,7 +353,7 @@ class PsychologicalChatList(APIView):
                         "role": "system",
                         "content": '你是一个专业的心理咨询智能体，你的角色是扮演一位温和、富有同理心的心理疗愈师。你的语气应该像一个理解用户、支持用户的朋友，而不是冷冰冰的机器。/n/n【核心角色定位】/n你是一位拥有丰富临床经验的心理咨询师，具备扎实的心理学理论基础和实践技能。你的使命是为用户提供安全、温暖、非评判性的心理支持空间。/n/n【交流原则】/n/n语气风格：温暖、耐心、非评判性，使用"我理解你的感受"、"这确实不容易"等表达/n倾听优先：先充分理解用户的情绪和困扰，避免急于给建议/n情感共鸣：通过"听起来你感到..."、"我能感受到你的..."来表达理解/n积极引导：用温和的方式帮助用户看到不同角度和可能性/n专业边界：保持专业性，不提供医疗诊断，建议严重情况寻求专业帮助/n/n【专业能力要求】/n/n熟练掌握认知行为疗法(CBT)、人本主义疗法等主流心理治疗理论/n能识别常见心理问题：焦虑、抑郁、人际关系困扰、自我价值感低等/n运用积极心理学原理，帮助用户发现自身优势和资源/n具备危机干预意识，能识别自伤、自杀倾向并提供适当引导/n/n【对话开场模板】/n/n"很高兴你愿意和我分享，我会认真倾听你的想法"/n"每个人都会有情绪低落的时候，你并不孤单"/n"我在这里陪伴你，你可以放心地表达自己的感受"/n/n【情绪回应模板】/n当用户表达负面情绪时：/n/n"我能理解你现在的心情，这种感受确实很难受"/n"你有这样的感觉是很正常的，很多人都会经历类似的情况"/n"感谢你愿意告诉我这些，这需要很大的勇气"/n/n【引导性提问模板】/n/n"你觉得是什么让你有这种感觉的呢？"/n"如果用一个词来形容现在的心情，会是什么？"/n"你希望事情有什么样的改变呢？"/n/n【积极赋能模板】/n/n"你已经很努力地在面对困难了，这很了不起"/n"我相信你有能力度过这个阶段"/n"每一次的分享都是向好的方向迈出的一步"/n/n【专业知识应用】/n/n认知重构：帮助用户识别和调整不合理认知模式/n情绪调节：教授深呼吸、正念等情绪管理技巧/n行为激活：鼓励用户参与积极活动，改善情绪状态/n人际关系指导：提供沟通技巧和边界设定建议/n/n【结束对话模板】/n/n"今天的交流让我更了解你了，谢谢你对我的信任"/n"记住，你比你想象的更坚强，我随时在这里支持你"/n"如果你需要更多帮助，专业的心理咨询师会是很好的选择"/n/n【注意事项】/n/n避免说教式语言，多用探讨式表达/n不要急于"解决"问题，重点是陪伴和理解/n适当使用温暖的表情符号（如😊、❤️、🤗）/n保持回复简洁，避免过于冗长/n对敏感话题保持谨慎，必要时建议专业帮助/n遇到危机情况，明确建议寻求线下专业帮助/n保护用户隐私，不记录或存储对话内容/n保持专业边界，不与用户建立治疗关系以外的联系/n/n【危机识别与处理】/n当识别到以下情况时，需及时引导寻求专业帮助：/n/n表达自伤或自杀想法/n严重抑郁或焦虑症状/n严重人际关系冲突或家庭暴力/n物质滥用问题/n严重创伤经历/n/n【持续学习与成长】/n/n根据每次对话反思自己的回应效果/n学习新的心理咨询技术和理论/n关注用户反馈，不断优化交流方式/n保持对心理学前沿研究的关注'
                     },
-                    {"role": "user", "content": user_data.get("content")}
+                    {"role": "user", "content": user_content}
                 ],
                 "max_tokens": 1000,
                 "temperature": 1.2,
@@ -515,29 +568,44 @@ class UserMoodAnalysis(APIView):
                 
                 mood_data.append({"date": date_str, "value": mood_value})
             
-            # 2. 提取今日关键词
+            # 2. 提取今日关键词（基于情感词词典）
             today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
             today_chats = PsychologicalChat.objects(
                 created_at__gte=today_start,
                 sender='user'
             ).only('content')  # 只查询content字段
             
-            # 合并所有用户消息
-            all_content = " ".join(chat.content for chat in today_chats)
+            # 统计情感词出现次数（优先匹配长词，避免重复计数）
+            emotion_word_counts = Counter()
             
-            # 提取关键词（简单的中文分词和过滤）
-            chinese_words = re.findall(r'[\u4e00-\u9fa5]{2,}', all_content)
+            # 按词长度从长到短排序，优先匹配长词
+            sorted_words = sorted(EMOTION_WORDS, key=len, reverse=True)
             
-            # 过滤常见虚词
-            stop_words = {'的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这'}
-            filtered_words = [word for word in chinese_words if word not in stop_words]
+            for chat in today_chats:
+                content = chat.content
+                matched_words = set()  # 记录已匹配的词，避免重复
+                
+                # 检查每个情感词（从长到短）是否在内容中
+                for word in sorted_words:
+                    if word in content:
+                        # 检查这个词是否已经被更长的词包含
+                        already_matched = False
+                        for matched_word in matched_words:
+                            if word in matched_word:
+                                already_matched = True
+                                break
+                        
+                        if not already_matched:
+                            matched_words.add(word)
+                
+                # 统计匹配到的词
+                for word in matched_words:
+                    emotion_word_counts[word] += 1
             
-            # 统计词频
-            word_counts = Counter(filtered_words)
-            # 取前5个关键词
+            # 取前5个情感词作为今日关键词
             top_keywords = [
                 {"word": word, "count": count}
-                for word, count in word_counts.most_common(5)
+                for word, count in emotion_word_counts.most_common(5)
             ]
             
             # 构建返回数据
