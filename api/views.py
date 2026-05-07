@@ -68,7 +68,7 @@ class UserList(APIView):
         return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
     
     def post(self, request):
-        serializer = UserSerializer(data=request.data)
+        serializer = UserSerializer(data=request.data) 
         if serializer.is_valid():
             serializer.save()
             return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
@@ -218,24 +218,95 @@ class ChickenSoupDetail(APIView):
         return Response({"code": 200, "message": "删除成功"}, status=status.HTTP_200_OK)
 
 class ActionAdviceRandom(APIView):
-    """随机行动建议视图 - 用于根据情绪向参数返回随机一条行动建议"""
+    """随机行动建议视图 - 用于根据今日心情指数返回随机一条行动建议"""
+    
+    def _get_today_mood(self):
+        """获取今日心情指数"""
+        from datetime import datetime, timedelta
+        import requests
+        
+        today = datetime.now()
+        start_of_day = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # 获取今天的用户消息
+        user_messages = PsychologicalChat.objects(
+            created_at__gte=start_of_day,
+            created_at__lte=end_of_day,
+            sender='user'
+        ).only('content')
+        
+        message_count = user_messages.count()
+        
+        if message_count == 0:
+            return 50  # 无消息默认值
+        
+        # 合并所有用户消息
+        all_content = " ".join(chat.content for chat in user_messages)
+        
+        # 尝试使用百度情感分析API
+        try:
+            API_KEY = "xpVdKMZPqXwcbESkQmJcGqj5"
+            SECRET_KEY = "82v8U8qgGWG247ltw4pFuOrQUVsElT7n"
+            token_url = "https://aip.baidubce.com/oauth/2.0/token"
+            token_params = {"grant_type": "client_credentials", "client_id": API_KEY, "client_secret": SECRET_KEY}
+            
+            token_response = requests.post(token_url, params=token_params, timeout=10)
+            try:
+                token_data = token_response.json()
+                access_token = token_data.get("access_token")
+                
+                if access_token:
+                    sentiment_url = f"https://aip.baidubce.com/rpc/2.0/nlp/v1/sentiment_classify?charset=UTF-8&access_token={access_token}"
+                    payload = {"text": all_content}
+                    headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+                    
+                    sentiment_response = requests.post(sentiment_url, headers=headers, json=payload, timeout=15)
+                    try:
+                        sentiment_data = sentiment_response.json()
+                        
+                        if "items" in sentiment_data and sentiment_data["items"]:
+                            positive_prob = sentiment_data["items"][0].get("positive_prob", 0.5)
+                            return int(positive_prob * 100)
+                        else:
+                            return 50
+                    finally:
+                        sentiment_response.close()
+                else:
+                    return 50
+            finally:
+                token_response.close()
+        except Exception as api_error:
+            print(f"百度情感分析API调用失败: {str(api_error)}")
+            return 50
     
     def get(self, request):
         """获取随机行动建议"""
-        # 获取情绪向参数
+        # 获取情绪向参数（如果用户提供，优先使用用户提供的）
         emotion_direction = request.query_params.get('emotion_direction')
         
         # 构建查询条件
         query = {'is_active': True}  # 只返回启用状态的数据
         
-        # 处理情绪向筛选
         if emotion_direction is not None:
+            # 用户指定了情绪向参数
             try:
                 emotion_direction = int(emotion_direction)
-                if emotion_direction != 0:  # 0表示查询全部，不需要添加筛选条件
+                if emotion_direction != 0:
                     query['emotion_direction'] = emotion_direction
             except ValueError:
                 return Response({"code": 201, "message": "情绪向参数无效"}, status=status.HTTP_201_CREATED)
+        else:
+            # 用户未指定，根据今日心情指数自动选择
+            today_mood = self._get_today_mood()
+            
+            # 根据心情指数确定情绪向
+            if today_mood <= 40:
+                query['emotion_direction'] = 3  # 0-40：负向
+            elif today_mood <= 70:
+                query['emotion_direction'] = 2  # 41-70：普通
+            else:
+                query['emotion_direction'] = 1  # 71-100：正向
         
         # 获取符合条件的数据总数
         count = ActionAdvice.objects(**query).count()
@@ -249,7 +320,19 @@ class ActionAdviceRandom(APIView):
         
         # 序列化并返回数据
         serializer = ActionAdviceSerializer(random_advice)
-        return Response({"code": 200, "data": serializer.data}, status=status.HTTP_200_OK)
+        result_data = serializer.data
+        
+        # 如果是根据心情指数自动选择的，返回心情指数信息
+        if emotion_direction is None:
+            result_data['today_mood'] = today_mood
+            if today_mood <= 40:
+                result_data['mood_type'] = 'negative'
+            elif today_mood <= 70:
+                result_data['mood_type'] = 'neutral'
+            else:
+                result_data['mood_type'] = 'positive'
+        
+        return Response({"code": 200, "data": result_data}, status=status.HTTP_200_OK)
 
 class ChickenSoupRandom(APIView):
     """随机鸡汤数据视图 - 用于返回随机一条鸡汤数据"""
